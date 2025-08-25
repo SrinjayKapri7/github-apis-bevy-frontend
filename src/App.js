@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import "./App.css"
 
 function App() {
-  const [keyword, setKeyword] = useState('');
+  const [keyword, setKeyword] = useState('All');
   const [repos, setRepos] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [page, setPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
-  // Fetch stored repos for current page
   const fetchRepos = async (pageNum) => {
     try {
       setLoading(true);
-      const res = await axios.get(`http://localhost:5000/api/repos?page=${pageNum}&keyword=${keyword}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL}/api/repos?page=${pageNum}&keyword=${keyword}`);
       setRepos(res.data.repos);
       setTotalPages(res.data.totalPages);
       setPage(res.data.currentPage);
@@ -25,16 +25,25 @@ function App() {
   };
 
   useEffect(() => {
-    fetchRepos(page);
+    if (page > 0) {
+      fetchRepos(page);
+    } else {
+      setPage(1)
+    }
   }, [page]);
 
-  // Search form handler
+
   const handleSearch = async (e) => {
     e.preventDefault();
     if (!keyword) return;
+
+    if (keyword == "All") {
+      return fetchRepos(1);
+    }
+
     try {
       setLoading(true);
-      await axios.post('http://localhost:5000/api/search', { keyword });
+      await axios.post(`${process.env.REACT_APP_API_URL}/api/search`, { keyword });
       await fetchRepos(1); // Reload page 1 with new data
     } catch {
       setError('Search failed. Try again.');
@@ -42,12 +51,33 @@ function App() {
     setLoading(false);
   };
 
-  // Pagination controls
+
   const goToPage = (num) => {
     if (num >= 1 && num <= totalPages) {
       setPage(num);
     }
   };
+
+  const handleClear = async () => {
+
+    if (window.confirm("Are you sure you want to delete?")) {
+      try {
+        setLoading(true);
+        await axios.delete(`${process.env.REACT_APP_API_URL}/api/clear-repos`);
+        setRepos([]);
+        setTotalPages(0);
+        setPage(0);
+        setError('');
+      } catch {
+        setError('Failed to clear repositories.');
+      }
+      setLoading(false);
+    } else {
+
+      console.log("Cancelled");
+    }
+
+  }
 
   return (
     <div style={{ margin: '2rem' }}>
@@ -61,16 +91,29 @@ function App() {
           required
           style={{ padding: '0.5rem', width: '300px' }}
         />
-        <button type="submit" style={{ padding: '0.5rem', marginLeft: '0.5rem' }}>Search</button>
+        <button
+          type="submit"
+          className='submit-button'
+        >
+          Search
+        </button>
+        <button
+          type="button"
+          className='clear-btn'
+          onClick={() => { handleClear() }}
+        >
+          Clear
+        </button>
       </form>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      {error && <p className='error'>{error}</p>}
       {loading ? (
         <p>Loading...</p>
       ) : (
         <div>
           <ul>
             {repos.map(repo => (
-              <li key={repo.id} style={{ margin: '1rem 0' }}>
+              <li key={repo.id} className='li-style'>
                 <a href={repo.html_url} target="_blank" rel="noopener noreferrer">
                   {repo.full_name}
                 </a>
@@ -79,11 +122,13 @@ function App() {
               </li>
             ))}
           </ul>
-          <div>
+          {repos.length > 0 && <div className="pagination">
+
             <button onClick={() => goToPage(page - 1)} disabled={page <= 1}>Previous</button>
-            <span style={{ margin: '0 1rem' }}>Page {page} of {totalPages}</span>
+            <span className='span-page-no'>Page {page} of {totalPages}</span>
             <button onClick={() => goToPage(page + 1)} disabled={page >= totalPages}>Next</button>
-          </div>
+
+          </div>}
         </div>
       )}
     </div>
